@@ -1,0 +1,5 @@
+{
+  "api_token": "YOUR_TOGGL_API_TOKEN",
+  "workspace_id": "1234567",
+  "base_url": "https://api.track.toggl.com/api/v9"
+}
