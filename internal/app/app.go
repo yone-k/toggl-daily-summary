@@ -46,7 +46,6 @@ func Run(ctx context.Context, opts Options) error {
 
 type TogglClient interface {
 	FetchTimeEntries(ctx context.Context, start, end time.Time) ([]toggl.TimeEntry, error)
-	FetchProjects(ctx context.Context, workspaceID string) (map[int64]string, error)
 }
 
 type runDeps struct {
@@ -77,38 +76,42 @@ func run(ctx context.Context, opts Options, cfg config.Config, deps runDeps) err
 		return err
 	}
 
-	projects, err := deps.client.FetchProjects(ctx, cfg.WorkspaceID)
+	format, err := parseFormat(opts.Format)
 	if err != nil {
 		return err
 	}
+
 	timeEntries, err := deps.client.FetchTimeEntries(ctx, dr.Start, dr.End)
 	if err != nil {
 		return err
 	}
 
-	entries := buildSummaryEntries(timeEntries, projects)
+	entries := buildSummaryEntries(timeEntries)
+	if opts.Daily {
+		entries = splitEntriesByDay(entries, time.Local)
+	}
 	buckets := summary.Aggregate(entries, opts.Daily, time.Local)
 	output := summary.FormatMarkdown(buckets, summary.FormatOptions{
 		Daily:        opts.Daily,
 		RangeStart:   dr.Start,
 		RangeEnd:     dr.End,
 		Location:     time.Local,
-		Format:       normalizeFormat(opts.Format),
+		Format:       format,
 		EmptyMessage: "No data",
 	})
 
 	return writeOutput(opts.Out, output, deps.stdout)
 }
 
-func normalizeFormat(format string) string {
+func parseFormat(format string) (string, error) {
 	format = strings.TrimSpace(strings.ToLower(format))
 	switch format {
 	case "", "default":
-		return "default"
+		return "default", nil
 	case "detail":
-		return "detail"
+		return "detail", nil
 	default:
-		return "default"
+		return "", fmt.Errorf("invalid --format: %s", format)
 	}
 }
 
