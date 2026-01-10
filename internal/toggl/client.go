@@ -17,12 +17,15 @@ type Client struct {
 	httpClient *http.Client
 }
 
+const defaultHTTPTimeout = 10 * time.Second
+
 type TimeEntry struct {
 	ID          int64
 	Description string
 	Start       time.Time
 	Duration    time.Duration
 	ProjectID   int64
+	ProjectName string
 }
 
 type timeEntryResponse struct {
@@ -44,7 +47,7 @@ type projectResponse struct {
 
 func NewClient(baseURL, token string, httpClient *http.Client) *Client {
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 	return &Client{
 		baseURL:    baseURL,
@@ -102,12 +105,18 @@ func (c *Client) FetchTimeEntries(ctx context.Context, start, end time.Time) ([]
 			projectID = *item.PID
 		}
 
+		projectName := ""
+		if item.ProjectName != nil {
+			projectName = *item.ProjectName
+		}
+
 		entries = append(entries, TimeEntry{
 			ID:          item.ID,
 			Description: item.Description,
 			Start:       startTime,
 			Duration:    time.Duration(item.Duration) * time.Second,
 			ProjectID:   projectID,
+			ProjectName: projectName,
 		})
 	}
 

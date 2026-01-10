@@ -20,6 +20,7 @@ func TestBuildSummaryEntries(t *testing.T) {
 			Start:       time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
 			Duration:    time.Hour,
 			ProjectID:   111,
+			ProjectName: "Alpha",
 		},
 		{
 			ID:          2,
@@ -29,11 +30,7 @@ func TestBuildSummaryEntries(t *testing.T) {
 			ProjectID:   999,
 		},
 	}
-	projects := map[int64]string{
-		111: "Alpha",
-	}
-
-	got := buildSummaryEntries(entries, projects)
+	got := buildSummaryEntries(entries)
 	if len(got) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(got))
 	}
@@ -62,7 +59,7 @@ func TestBuildSummaryEntriesDefaults(t *testing.T) {
 		},
 	}
 
-	got := buildSummaryEntries(entries, map[int64]string{})
+	got := buildSummaryEntries(entries)
 	if got[0].Project != "No Project" {
 		t.Fatalf("unexpected default project: %s", got[0].Project)
 	}
@@ -102,18 +99,12 @@ func TestWriteOutput(t *testing.T) {
 
 type fakeTogglClient struct {
 	timeEntries []toggl.TimeEntry
-	projects    map[int64]string
 }
 
 func (f *fakeTogglClient) FetchTimeEntries(_ context.Context, start, end time.Time) ([]toggl.TimeEntry, error) {
 	_ = start
 	_ = end
 	return f.timeEntries, nil
-}
-
-func (f *fakeTogglClient) FetchProjects(_ context.Context, workspaceID string) (map[int64]string, error) {
-	_ = workspaceID
-	return f.projects, nil
 }
 
 func TestRunWritesSummary(t *testing.T) {
@@ -124,12 +115,14 @@ func TestRunWritesSummary(t *testing.T) {
 				Start:       time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
 				Duration:    90 * time.Minute,
 				ProjectID:   111,
+				ProjectName: "Alpha",
 			},
 			{
 				Description: "Build",
 				Start:       time.Date(2026, 1, 10, 10, 0, 0, 0, time.UTC),
 				Duration:    30 * time.Minute,
 				ProjectID:   111,
+				ProjectName: "Alpha",
 			},
 			{
 				Description: "",
@@ -137,9 +130,6 @@ func TestRunWritesSummary(t *testing.T) {
 				Duration:    60 * time.Minute,
 				ProjectID:   0,
 			},
-		},
-		projects: map[int64]string{
-			111: "Alpha",
 		},
 	}
 
@@ -173,6 +163,92 @@ func TestRunWritesSummary(t *testing.T) {
 		"### プロジェクト\n" +
 		"- Alpha 2.00h\n" +
 		"- No Project 1.00h\n"
+
+	if buf.String() != want {
+		t.Fatalf("unexpected output:\n--- got ---\n%s\n--- want ---\n%s", buf.String(), want)
+	}
+}
+
+func TestRunInvalidFormatReturnsError(t *testing.T) {
+	client := &fakeTogglClient{}
+	opts := Options{
+		Date:   "2026-01-10",
+		Format: "weird",
+	}
+	cfg := config.Config{
+		APIToken:    "token",
+		WorkspaceID: "999",
+		BaseURL:     "http://example",
+	}
+
+	err := run(context.Background(), opts, cfg, runDeps{
+		client: client,
+		now: func() time.Time {
+			return time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestRunSplitsEntriesAcrossDaysWhenDaily(t *testing.T) {
+	origLoc := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = origLoc
+	}()
+
+	client := &fakeTogglClient{
+		timeEntries: []toggl.TimeEntry{
+			{
+				Description: "Task",
+				Start:       time.Date(2026, 1, 10, 23, 30, 0, 0, time.UTC),
+				Duration:    90 * time.Minute,
+				ProjectID:   111,
+				ProjectName: "Alpha",
+			},
+		},
+	}
+	opts := Options{
+		From:  "2026-01-10",
+		To:    "2026-01-11",
+		Daily: true,
+	}
+	cfg := config.Config{
+		APIToken:    "token",
+		WorkspaceID: "999",
+		BaseURL:     "http://example",
+	}
+
+	var buf bytes.Buffer
+	err := run(context.Background(), opts, cfg, runDeps{
+		client: client,
+		stdout: &buf,
+		now: func() time.Time {
+			return time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := "" +
+		"## 2026-01-10\n" +
+		"\n" +
+		"### タスク\n" +
+		"- Task 0.50h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Alpha 0.50h\n" +
+		"\n" +
+		"## 2026-01-11\n" +
+		"\n" +
+		"### タスク\n" +
+		"- Task 1.00h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Alpha 1.00h\n"
 
 	if buf.String() != want {
 		t.Fatalf("unexpected output:\n--- got ---\n%s\n--- want ---\n%s", buf.String(), want)

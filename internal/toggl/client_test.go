@@ -26,7 +26,7 @@ func TestClientFetchTimeEntries(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`[
-		  {"id":1,"description":"Design","start":"2026-01-10T09:00:00Z","duration":3600,"pid":111},
+		  {"id":1,"description":"Design","start":"2026-01-10T09:00:00Z","duration":3600,"pid":111,"project_name":"Alpha"},
 		  {"id":2,"description":"Running","start":"2026-01-10T10:00:00Z","duration":-1,"pid":111}
 		]`))
 	}))
@@ -47,6 +47,9 @@ func TestClientFetchTimeEntries(t *testing.T) {
 	if entries[0].Description != "Design" {
 		t.Fatalf("unexpected description: %s", entries[0].Description)
 	}
+	if entries[0].ProjectName != "Alpha" {
+		t.Fatalf("unexpected project name: %s", entries[0].ProjectName)
+	}
 
 	if gotQuery.Get("start_date") == "" || gotQuery.Get("end_date") == "" {
 		t.Fatalf("missing date query params: %v", gotQuery.Encode())
@@ -61,6 +64,16 @@ func TestClientFetchTimeEntries(t *testing.T) {
 	}
 	if string(payload) != "token-123:api_token" {
 		t.Fatalf("unexpected auth payload: %s", string(payload))
+	}
+}
+
+func TestNewClientUsesDefaultTimeout(t *testing.T) {
+	client := NewClient("http://example", "token", nil)
+	if client.httpClient == nil {
+		t.Fatalf("expected http client")
+	}
+	if client.httpClient.Timeout != defaultHTTPTimeout {
+		t.Fatalf("unexpected timeout: %s", client.httpClient.Timeout)
 	}
 }
 

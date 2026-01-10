@@ -80,6 +80,13 @@ toggl-daily-summary --date 2026-1-10 --format detail --out summary.md
 - `--workspace` Workspace ID（config/env を上書き）
 - `--format` 出力形式（`default` / `detail`）
 
+補足:
+
+- `--format` は `default` / `detail` 以外はエラーになります
+- `--daily` は日跨ぎエントリを日別に分割します
+- 実行中タスク（duration < 0）は集計から除外します
+- HTTP タイムアウトは 10 秒固定です
+
 ## 開発
 
 ```bash
