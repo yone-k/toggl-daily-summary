@@ -33,6 +33,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Out, "out", "", "Write output to file (default: stdout)")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Config file path (default: ~/.config/toggl-daily-summary/config.json)")
 	cmd.Flags().StringVar(&opts.WorkspaceID, "workspace", "", "Workspace ID (overrides config/env)")
+	cmd.Flags().StringVar(&opts.Format, "format", "default", "Output format: default or detail")
 
 	return cmd
 }

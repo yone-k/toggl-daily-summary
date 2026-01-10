@@ -8,4 +8,5 @@ type Options struct {
 	Out         string
 	ConfigPath  string
 	WorkspaceID string
+	Format      string
 }

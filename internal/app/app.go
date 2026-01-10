@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/yone/toggl-daily-summary/internal/config"
@@ -89,9 +90,23 @@ func run(ctx context.Context, opts Options, cfg config.Config, deps runDeps) err
 		RangeStart: dr.Start,
 		RangeEnd:   dr.End,
 		Location:   time.Local,
+		Format:     normalizeFormat(opts.Format),
+		EmptyMessage: "No data",
 	})
 
 	return writeOutput(opts.Out, output, deps.stdout)
+}
+
+func normalizeFormat(format string) string {
+	format = strings.TrimSpace(strings.ToLower(format))
+	switch format {
+	case "", "default":
+		return "default"
+	case "detail":
+		return "detail"
+	default:
+		return "default"
+	}
 }
 
 func resolveDateRange(opts Options, now func() time.Time) (DateRange, error) {

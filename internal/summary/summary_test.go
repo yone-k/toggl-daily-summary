@@ -29,7 +29,7 @@ func TestFormatMarkdownSingleBucket(t *testing.T) {
 		},
 	}
 
-	got := FormatMarkdown(buckets, FormatOptions{})
+	got := FormatMarkdown(buckets, FormatOptions{Format: "detail"})
 	want := "" +
 		"### Alpha 2.50h\n" +
 		"- Build 0.50h\n" +
@@ -97,6 +97,7 @@ func TestFormatMarkdownDailySpacingAndOrder(t *testing.T) {
 
 	buckets := Aggregate(entries, true, jst)
 	got := FormatMarkdown(buckets, FormatOptions{
+		Format:     "detail",
 		Daily:      true,
 		RangeStart: time.Date(2026, 1, 10, 0, 0, 0, 0, jst),
 		RangeEnd:   time.Date(2026, 1, 11, 0, 0, 0, 0, jst),
@@ -120,6 +121,7 @@ func TestFormatMarkdownDailySpacingAndOrder(t *testing.T) {
 func TestFormatMarkdownEmptyRange(t *testing.T) {
 	jst := time.FixedZone("JST", 9*60*60)
 	got := FormatMarkdown(nil, FormatOptions{
+		Format:     "detail",
 		Daily:      false,
 		RangeStart: time.Date(2026, 1, 10, 0, 0, 0, 0, jst),
 		RangeEnd:   time.Date(2026, 1, 11, 0, 0, 0, 0, jst),
@@ -134,6 +136,7 @@ func TestFormatMarkdownEmptyRange(t *testing.T) {
 func TestFormatMarkdownEmptyDailyRange(t *testing.T) {
 	jst := time.FixedZone("JST", 9*60*60)
 	got := FormatMarkdown(nil, FormatOptions{
+		Format:     "detail",
 		Daily:      true,
 		RangeStart: time.Date(2026, 1, 10, 0, 0, 0, 0, jst),
 		RangeEnd:   time.Date(2026, 1, 12, 0, 0, 0, 0, jst),
@@ -143,6 +146,100 @@ func TestFormatMarkdownEmptyDailyRange(t *testing.T) {
 		"## 2026-01-10\n" +
 		"\n" +
 		"## 2026-01-11\n"
+	if got != want {
+		t.Fatalf("unexpected markdown:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestFormatMarkdownDefaultTasksThenProjects(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	entries := []Entry{
+		{
+			Project:  "Alpha",
+			Task:     "Task1",
+			Start:    time.Date(2026, 1, 10, 9, 0, 0, 0, jst),
+			Duration: 30 * time.Minute,
+		},
+		{
+			Project:  "Alpha",
+			Task:     "Task2",
+			Start:    time.Date(2026, 1, 10, 10, 0, 0, 0, jst),
+			Duration: 60 * time.Minute,
+		},
+		{
+			Project:  "Alpha",
+			Task:     "Task1",
+			Start:    time.Date(2026, 1, 10, 11, 0, 0, 0, jst),
+			Duration: 15 * time.Minute,
+		},
+		{
+			Project:  "Beta",
+			Task:     "Task3",
+			Start:    time.Date(2026, 1, 10, 12, 0, 0, 0, jst),
+			Duration: 30 * time.Minute,
+		},
+	}
+
+	buckets := Aggregate(entries, false, jst)
+	got := FormatMarkdown(buckets, FormatOptions{
+		Format:       "default",
+		EmptyMessage: "No data",
+	})
+	want := "" +
+		"### タスク\n" +
+		"- Task1 0.75h\n" +
+		"- Task2 1.00h\n" +
+		"- Task3 0.50h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Alpha 1.75h\n" +
+		"- Beta 0.50h\n"
+
+	if got != want {
+		t.Fatalf("unexpected markdown:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestFormatMarkdownDefaultDaily(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	entries := []Entry{
+		{
+			Project:  "Alpha",
+			Task:     "Task1",
+			Start:    time.Date(2026, 1, 10, 9, 0, 0, 0, jst),
+			Duration: 30 * time.Minute,
+		},
+	}
+
+	buckets := Aggregate(entries, true, jst)
+	got := FormatMarkdown(buckets, FormatOptions{
+		Format:       "default",
+		Daily:        true,
+		RangeStart:   time.Date(2026, 1, 10, 0, 0, 0, 0, jst),
+		RangeEnd:     time.Date(2026, 1, 11, 0, 0, 0, 0, jst),
+		Location:     jst,
+		EmptyMessage: "No data",
+	})
+	want := "" +
+		"## 2026-01-10\n" +
+		"\n" +
+		"### タスク\n" +
+		"- Task1 0.50h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Alpha 0.50h\n"
+
+	if got != want {
+		t.Fatalf("unexpected markdown:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestFormatMarkdownDefaultEmpty(t *testing.T) {
+	got := FormatMarkdown(nil, FormatOptions{
+		Format:       "default",
+		EmptyMessage: "No data",
+	})
+	want := "No data\n"
 	if got != want {
 		t.Fatalf("unexpected markdown:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}

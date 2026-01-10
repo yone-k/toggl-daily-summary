@@ -165,12 +165,12 @@ func TestRunWritesSummary(t *testing.T) {
 	}
 
 	want := "" +
-		"### Alpha 2.00h\n" +
-		"- Build 0.50h\n" +
 		"- Design 1.50h\n" +
+		"- Build 0.50h\n" +
+		"- No Description 1.00h\n" +
 		"\n" +
-		"### No Project 1.00h\n" +
-		"- No Description 1.00h\n"
+		"- Alpha 2.00h\n" +
+		"- No Project 1.00h\n"
 
 	if buf.String() != want {
 		t.Fatalf("unexpected output:\n--- got ---\n%s\n--- want ---\n%s", buf.String(), want)
