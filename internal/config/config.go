@@ -14,11 +14,11 @@ type Config struct {
 }
 
 func DefaultPath() (string, error) {
-	dir, err := os.UserConfigDir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "toggl-daily-summary", "config.json"), nil
+	return filepath.Join(home, ".config", "toggl-daily-summary", "config.json"), nil
 }
 
 func Load(path string) (Config, error) {

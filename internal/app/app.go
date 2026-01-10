@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/yone/toggl-daily-summary/internal/config"
+	"github.com/yone/toggl-daily-summary/internal/summary"
+	"github.com/yone/toggl-daily-summary/internal/toggl"
 )
 
 const dateLayout = "2006-01-02"
@@ -19,8 +22,6 @@ type DateRange struct {
 }
 
 func Run(ctx context.Context, opts Options) error {
-	_ = ctx
-
 	cfg, err := config.Load(opts.ConfigPath)
 	if err != nil {
 		return err
@@ -33,35 +34,72 @@ func Run(ctx context.Context, opts Options) error {
 		cfg.BaseURL = "https://api.track.toggl.com/api/v9"
 	}
 
+	return run(ctx, opts, cfg, runDeps{
+		now:    time.Now,
+		stdout: os.Stdout,
+	})
+}
+
+type TogglClient interface {
+	FetchTimeEntries(ctx context.Context, start, end time.Time) ([]toggl.TimeEntry, error)
+	FetchProjects(ctx context.Context, workspaceID string) (map[int64]string, error)
+}
+
+type runDeps struct {
+	client TogglClient
+	stdout io.Writer
+	now    func() time.Time
+}
+
+func run(ctx context.Context, opts Options, cfg config.Config, deps runDeps) error {
 	if cfg.APIToken == "" {
 		return errors.New("missing API token: set TOGGL_API_TOKEN or config api_token")
 	}
 	if cfg.WorkspaceID == "" {
 		return errors.New("missing workspace ID: set TOGGL_WORKSPACE_ID or config workspace_id")
 	}
+	if deps.now == nil {
+		deps.now = time.Now
+	}
+	if deps.stdout == nil {
+		deps.stdout = os.Stdout
+	}
+	if deps.client == nil {
+		deps.client = toggl.NewClient(cfg.BaseURL, cfg.APIToken, nil)
+	}
 
-	dr, err := resolveDateRange(opts)
+	dr, err := resolveDateRange(opts, deps.now)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(os.Stdout, "Resolved range: %s to %s (daily=%v)\n",
-		dr.Start.Format(time.RFC3339),
-		dr.End.Format(time.RFC3339),
-		opts.Daily,
-	)
-	fmt.Fprintln(os.Stdout, "Environment OK. API integration will be added next.")
-	return nil
+	projects, err := deps.client.FetchProjects(ctx, cfg.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	timeEntries, err := deps.client.FetchTimeEntries(ctx, dr.Start, dr.End)
+	if err != nil {
+		return err
+	}
+
+	entries := buildSummaryEntries(timeEntries, projects)
+	buckets := summary.Aggregate(entries, opts.Daily, time.Local)
+	output := summary.FormatMarkdown(buckets)
+
+	return writeOutput(opts.Out, output, deps.stdout)
 }
 
-func resolveDateRange(opts Options) (DateRange, error) {
+func resolveDateRange(opts Options, now func() time.Time) (DateRange, error) {
+	if now == nil {
+		now = time.Now
+	}
 	if opts.Date != "" && (opts.From != "" || opts.To != "") {
 		return DateRange{}, errors.New("use either --date or --from/--to, not both")
 	}
 
 	if opts.Date == "" && opts.From == "" && opts.To == "" {
-		now := time.Now().In(time.Local)
-		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+		current := now().In(time.Local)
+		start := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, time.Local)
 		end := start.AddDate(0, 0, 1)
 		return DateRange{Start: start, End: end, IsRange: false}, nil
 	}
