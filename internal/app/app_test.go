@@ -40,7 +40,7 @@ func TestBuildSummaryEntries(t *testing.T) {
 	if got[0].Project != "Alpha" {
 		t.Fatalf("unexpected project: %s", got[0].Project)
 	}
-	if got[1].Project != "" {
+	if got[1].Project != "No Project" {
 		t.Fatalf("unexpected project for missing id: %s", got[1].Project)
 	}
 	if got[0].Task != "Design" {
@@ -48,6 +48,26 @@ func TestBuildSummaryEntries(t *testing.T) {
 	}
 	if got[0].Duration != time.Hour {
 		t.Fatalf("unexpected duration: %v", got[0].Duration)
+	}
+}
+
+func TestBuildSummaryEntriesDefaults(t *testing.T) {
+	entries := []toggl.TimeEntry{
+		{
+			ID:          1,
+			Description: "",
+			Start:       time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+			Duration:    time.Minute,
+			ProjectID:   0,
+		},
+	}
+
+	got := buildSummaryEntries(entries, map[int64]string{})
+	if got[0].Project != "No Project" {
+		t.Fatalf("unexpected default project: %s", got[0].Project)
+	}
+	if got[0].Task != "No Description" {
+		t.Fatalf("unexpected default task: %s", got[0].Task)
 	}
 }
 
