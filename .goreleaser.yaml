@@ -1,0 +1,39 @@
+project_name: toggl-daily-summary
+
+builds:
+  - id: toggl-daily-summary-darwin
+    main: ./cmd/toggl-daily-summary
+    binary: toggl-daily-summary
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: toggl-daily-summary-linux
+    main: ./cmd/toggl-daily-summary
+    binary: toggl-daily-summary
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: toggl-daily-summary-windows
+    main: ./cmd/toggl-daily-summary
+    binary: toggl-daily-summary
+    goos:
+      - windows
+    goarch:
+      - amd64
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - config.example.json
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
