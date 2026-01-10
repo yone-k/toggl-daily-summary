@@ -33,6 +33,13 @@ type Bucket struct {
 	Projects []ProjectBucket
 }
 
+type FormatOptions struct {
+	Daily      bool
+	RangeStart time.Time
+	RangeEnd   time.Time
+	Location   *time.Location
+}
+
 func Aggregate(entries []Entry, daily bool, loc *time.Location) []Bucket {
 	if loc == nil {
 		loc = time.Local
@@ -69,14 +76,8 @@ func Aggregate(entries []Entry, daily bool, loc *time.Location) []Bucket {
 	buckets := make([]Bucket, 0, len(dateKeys))
 	for _, dateKey := range dateKeys {
 		projects := grouped[dateKey]
-		projectNames := make([]string, 0, len(projects))
-		for name := range projects {
-			projectNames = append(projectNames, name)
-		}
-		sort.Strings(projectNames)
-
-		projectBuckets := make([]ProjectBucket, 0, len(projectNames))
-		for _, projectName := range projectNames {
+		projectBuckets := make([]ProjectBucket, 0, len(projects))
+		for projectName := range projects {
 			tasks := projects[projectName]
 			taskNames := make([]string, 0, len(tasks))
 			for name := range tasks {
@@ -102,6 +103,13 @@ func Aggregate(entries []Entry, daily bool, loc *time.Location) []Bucket {
 			})
 		}
 
+		sort.Slice(projectBuckets, func(i, j int) bool {
+			if projectBuckets[i].Total == projectBuckets[j].Total {
+				return projectBuckets[i].Name < projectBuckets[j].Name
+			}
+			return projectBuckets[i].Total > projectBuckets[j].Total
+		})
+
 		buckets = append(buckets, Bucket{
 			Date:     dateKey,
 			Projects: projectBuckets,
@@ -111,13 +119,24 @@ func Aggregate(entries []Entry, daily bool, loc *time.Location) []Bucket {
 	return buckets
 }
 
-func FormatMarkdown(buckets []Bucket) string {
+func FormatMarkdown(buckets []Bucket, opts FormatOptions) string {
 	var b strings.Builder
+	if len(buckets) == 0 {
+		return formatEmpty(&b, opts)
+	}
+	emitGap := false
 	for _, bucket := range buckets {
 		if bucket.Date != "" {
+			if emitGap {
+				b.WriteString("\n")
+			}
 			fmt.Fprintf(&b, "## %s\n", bucket.Date)
+			emitGap = true
 		}
-		for _, project := range bucket.Projects {
+		for i, project := range bucket.Projects {
+			if i > 0 || bucket.Date != "" {
+				b.WriteString("\n")
+			}
 			fmt.Fprintf(&b, "### %s %sh\n", project.Name, formatHours(project.Total))
 			for _, task := range project.Tasks {
 				fmt.Fprintf(&b, "- %s %sh\n", task.Name, formatHours(task.Total))
@@ -125,6 +144,47 @@ func FormatMarkdown(buckets []Bucket) string {
 		}
 	}
 	return b.String()
+}
+
+func formatEmpty(b *strings.Builder, opts FormatOptions) string {
+	loc := opts.Location
+	if loc == nil {
+		loc = time.Local
+	}
+	if opts.RangeStart.IsZero() || opts.RangeEnd.IsZero() {
+		return ""
+	}
+
+	start := opts.RangeStart.In(loc)
+	endExclusive := opts.RangeEnd.In(loc)
+	endInclusive := endExclusive.AddDate(0, 0, -1)
+	if endInclusive.Before(start) {
+		endInclusive = start
+	}
+
+	if opts.Daily {
+		for date := start; !date.After(endInclusive); date = date.AddDate(0, 0, 1) {
+			if b.Len() > 0 {
+				b.WriteString("\n")
+			}
+			fmt.Fprintf(b, "## %s\n", date.Format(dateLayout))
+		}
+		return b.String()
+	}
+
+	if sameDay(start, endInclusive) {
+		fmt.Fprintf(b, "## %s\n", start.Format(dateLayout))
+		return b.String()
+	}
+
+	fmt.Fprintf(b, "## %s..%s\n", start.Format(dateLayout), endInclusive.Format(dateLayout))
+	return b.String()
+}
+
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
 
 func formatHours(d time.Duration) string {

@@ -84,7 +84,12 @@ func run(ctx context.Context, opts Options, cfg config.Config, deps runDeps) err
 
 	entries := buildSummaryEntries(timeEntries, projects)
 	buckets := summary.Aggregate(entries, opts.Daily, time.Local)
-	output := summary.FormatMarkdown(buckets)
+	output := summary.FormatMarkdown(buckets, summary.FormatOptions{
+		Daily:      opts.Daily,
+		RangeStart: dr.Start,
+		RangeEnd:   dr.End,
+		Location:   time.Local,
+	})
 
 	return writeOutput(opts.Out, output, deps.stdout)
 }

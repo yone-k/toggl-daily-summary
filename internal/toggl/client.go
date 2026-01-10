@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -64,8 +66,8 @@ func (c *Client) FetchTimeEntries(ctx context.Context, start, end time.Time) ([]
 	req.SetBasicAuth(c.token, "api_token")
 
 	q := req.URL.Query()
-	q.Set("start_date", start.Format(time.RFC3339))
-	q.Set("end_date", end.Format(time.RFC3339))
+	q.Set("start_date", start.UTC().Format(time.RFC3339))
+	q.Set("end_date", end.UTC().Format(time.RFC3339))
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := c.httpClient.Do(req)
@@ -75,7 +77,7 @@ func (c *Client) FetchTimeEntries(ctx context.Context, start, end time.Time) ([]
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("toggl API error: %s", resp.Status)
+		return nil, buildAPIError(req, resp)
 	}
 
 	var raw []timeEntryResponse
@@ -131,7 +133,7 @@ func (c *Client) FetchProjects(ctx context.Context, workspaceID string) (map[int
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("toggl API error: %s", resp.Status)
+		return nil, buildAPIError(req, resp)
 	}
 
 	var raw []projectResponse
@@ -145,4 +147,37 @@ func (c *Client) FetchProjects(ctx context.Context, workspaceID string) (map[int
 	}
 
 	return projects, nil
+}
+
+func buildAPIError(req *http.Request, resp *http.Response) error {
+	method := "UNKNOWN"
+	uri := ""
+	if req != nil {
+		method = req.Method
+		if req.URL != nil {
+			uri = req.URL.RequestURI()
+		}
+	}
+	status := "unknown status"
+	if resp != nil {
+		status = resp.Status
+	}
+
+	body := readErrorBody(resp)
+	if body != "" {
+		return fmt.Errorf("toggl API error: %s (%s %s): %s", status, method, uri, body)
+	}
+	return fmt.Errorf("toggl API error: %s (%s %s)", status, method, uri)
+}
+
+func readErrorBody(resp *http.Response) string {
+	if resp == nil || resp.Body == nil {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	if err != nil {
+		return ""
+	}
+	text := strings.TrimSpace(string(data))
+	return text
 }

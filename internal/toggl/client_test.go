@@ -95,3 +95,30 @@ func TestClientFetchProjects(t *testing.T) {
 		t.Fatalf("missing basic auth header: %s", gotAuth)
 	}
 }
+
+func TestClientFetchTimeEntriesErrorIncludesCause(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("start_date must not be earlier than 2025-10-10"))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v9", "token-123", server.Client())
+	start := time.Date(2025, 1, 9, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC)
+	_, err := client.FetchTimeEntries(context.Background(), start, end)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "400") {
+		t.Fatalf("expected status in error, got: %s", msg)
+	}
+	if !strings.Contains(msg, "start_date must not be earlier") {
+		t.Fatalf("expected cause in error, got: %s", msg)
+	}
+	if !strings.Contains(msg, "GET") || !strings.Contains(msg, "/api/v9/me/time_entries") {
+		t.Fatalf("expected request info in error, got: %s", msg)
+	}
+}
