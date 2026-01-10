@@ -26,9 +26,9 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.Date, "date", "", "Target date in YYYY-MM-DD (default: today, local)")
-	cmd.Flags().StringVar(&opts.From, "from", "", "Start date in YYYY-MM-DD")
-	cmd.Flags().StringVar(&opts.To, "to", "", "End date in YYYY-MM-DD")
+	cmd.Flags().StringVar(&opts.Date, "date", "", "Target date in YYYY-M-D (default: today, local)")
+	cmd.Flags().StringVar(&opts.From, "from", "", "Start date in YYYY-M-D")
+	cmd.Flags().StringVar(&opts.To, "to", "", "End date in YYYY-M-D")
 	cmd.Flags().BoolVar(&opts.Daily, "daily", false, "Split output by day when using a date range")
 	cmd.Flags().StringVar(&opts.Out, "out", "", "Write output to file (default: stdout)")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Config file path (default: ~/.config/toggl-daily-summary/config.json)")

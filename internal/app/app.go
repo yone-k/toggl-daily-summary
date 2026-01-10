@@ -14,7 +14,10 @@ import (
 	"github.com/yone/toggl-daily-summary/internal/toggl"
 )
 
-const dateLayout = "2006-01-02"
+var dateLayouts = []string{
+	"2006-1-2",
+	"2006-01-02",
+}
 
 type DateRange struct {
 	Start   time.Time
@@ -86,11 +89,11 @@ func run(ctx context.Context, opts Options, cfg config.Config, deps runDeps) err
 	entries := buildSummaryEntries(timeEntries, projects)
 	buckets := summary.Aggregate(entries, opts.Daily, time.Local)
 	output := summary.FormatMarkdown(buckets, summary.FormatOptions{
-		Daily:      opts.Daily,
-		RangeStart: dr.Start,
-		RangeEnd:   dr.End,
-		Location:   time.Local,
-		Format:     normalizeFormat(opts.Format),
+		Daily:        opts.Daily,
+		RangeStart:   dr.Start,
+		RangeEnd:     dr.End,
+		Location:     time.Local,
+		Format:       normalizeFormat(opts.Format),
 		EmptyMessage: "No data",
 	})
 
@@ -125,7 +128,7 @@ func resolveDateRange(opts Options, now func() time.Time) (DateRange, error) {
 	}
 
 	if opts.Date != "" {
-		date, err := time.ParseInLocation(dateLayout, opts.Date, time.Local)
+		date, err := parseDateInLocation(opts.Date, time.Local)
 		if err != nil {
 			return DateRange{}, fmt.Errorf("invalid --date: %w", err)
 		}
@@ -138,11 +141,11 @@ func resolveDateRange(opts Options, now func() time.Time) (DateRange, error) {
 		return DateRange{}, errors.New("both --from and --to are required for a range")
 	}
 
-	from, err := time.ParseInLocation(dateLayout, opts.From, time.Local)
+	from, err := parseDateInLocation(opts.From, time.Local)
 	if err != nil {
 		return DateRange{}, fmt.Errorf("invalid --from: %w", err)
 	}
-	to, err := time.ParseInLocation(dateLayout, opts.To, time.Local)
+	to, err := parseDateInLocation(opts.To, time.Local)
 	if err != nil {
 		return DateRange{}, fmt.Errorf("invalid --to: %w", err)
 	}
@@ -153,4 +156,16 @@ func resolveDateRange(opts Options, now func() time.Time) (DateRange, error) {
 	start := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.Local)
 	end := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.Local).AddDate(0, 0, 1)
 	return DateRange{Start: start, End: end, IsRange: true}, nil
+}
+
+func parseDateInLocation(value string, loc *time.Location) (time.Time, error) {
+	var lastErr error
+	for _, layout := range dateLayouts {
+		parsed, err := time.ParseInLocation(layout, value, loc)
+		if err == nil {
+			return parsed, nil
+		}
+		lastErr = err
+	}
+	return time.Time{}, lastErr
 }
