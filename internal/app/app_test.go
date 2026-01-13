@@ -99,12 +99,21 @@ func TestWriteOutput(t *testing.T) {
 
 type fakeTogglClient struct {
 	timeEntries []toggl.TimeEntry
+	projects    map[int64]string
 }
 
 func (f *fakeTogglClient) FetchTimeEntries(_ context.Context, start, end time.Time) ([]toggl.TimeEntry, error) {
 	_ = start
 	_ = end
 	return f.timeEntries, nil
+}
+
+func (f *fakeTogglClient) FetchProjects(_ context.Context, workspaceID string) (map[int64]string, error) {
+	_ = workspaceID
+	if f.projects == nil {
+		return map[int64]string{}, nil
+	}
+	return f.projects, nil
 }
 
 func TestRunWritesSummary(t *testing.T) {
@@ -189,6 +198,54 @@ func TestRunInvalidFormatReturnsError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestRunResolvesProjectNamesFromWorkspace(t *testing.T) {
+	client := &fakeTogglClient{
+		timeEntries: []toggl.TimeEntry{
+			{
+				Description: "Design",
+				Start:       time.Date(2026, 1, 10, 9, 0, 0, 0, time.UTC),
+				Duration:    90 * time.Minute,
+				ProjectID:   111,
+			},
+		},
+		projects: map[int64]string{
+			111: "Alpha",
+		},
+	}
+
+	opts := Options{
+		Date: "2026-01-10",
+	}
+	cfg := config.Config{
+		APIToken:    "token",
+		WorkspaceID: "999",
+		BaseURL:     "http://example",
+	}
+
+	var buf bytes.Buffer
+	err := run(context.Background(), opts, cfg, runDeps{
+		client: client,
+		stdout: &buf,
+		now: func() time.Time {
+			return time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := "" +
+		"### タスク\n" +
+		"- Design 1.50h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Alpha 1.50h\n"
+
+	if buf.String() != want {
+		t.Fatalf("unexpected output:\n--- got ---\n%s\n--- want ---\n%s", buf.String(), want)
 	}
 }
 
