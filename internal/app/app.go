@@ -46,6 +46,7 @@ func Run(ctx context.Context, opts Options) error {
 
 type TogglClient interface {
 	FetchTimeEntries(ctx context.Context, start, end time.Time) ([]toggl.TimeEntry, error)
+	FetchProjects(ctx context.Context, workspaceID string) (map[int64]string, error)
 }
 
 type runDeps struct {
@@ -84,6 +85,13 @@ func run(ctx context.Context, opts Options, cfg config.Config, deps runDeps) err
 	timeEntries, err := deps.client.FetchTimeEntries(ctx, dr.Start, dr.End)
 	if err != nil {
 		return err
+	}
+	if needsProjectNames(timeEntries) {
+		projects, err := deps.client.FetchProjects(ctx, cfg.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		applyProjectNames(timeEntries, projects)
 	}
 
 	entries := buildSummaryEntries(timeEntries)
@@ -171,4 +179,27 @@ func parseDateInLocation(value string, loc *time.Location) (time.Time, error) {
 		lastErr = err
 	}
 	return time.Time{}, lastErr
+}
+
+func needsProjectNames(entries []toggl.TimeEntry) bool {
+	for _, entry := range entries {
+		if strings.TrimSpace(entry.ProjectName) == "" && entry.ProjectID != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func applyProjectNames(entries []toggl.TimeEntry, projects map[int64]string) {
+	if len(entries) == 0 || len(projects) == 0 {
+		return
+	}
+	for i, entry := range entries {
+		if strings.TrimSpace(entry.ProjectName) != "" || entry.ProjectID == 0 {
+			continue
+		}
+		if name, ok := projects[entry.ProjectID]; ok {
+			entries[i].ProjectName = name
+		}
+	}
 }
