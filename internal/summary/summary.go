@@ -41,18 +41,28 @@ type Bucket struct {
 }
 
 type FormatOptions struct {
-	Daily      bool
-	RangeStart time.Time
-	RangeEnd   time.Time
-	Location   *time.Location
-	Format     string
+	Daily        bool
+	RangeStart   time.Time
+	RangeEnd     time.Time
+	Location     *time.Location
+	Format       string
 	EmptyMessage string
 }
 
-func Aggregate(entries []Entry, daily bool, loc *time.Location) []Bucket {
+type AggregateOptions struct {
+	Daily                  bool
+	Location               *time.Location
+	SeparateTasksByProject bool
+}
+
+func Aggregate(entries []Entry, opts AggregateOptions) []Bucket {
+	loc := opts.Location
 	if loc == nil {
 		loc = time.Local
 	}
+
+	daily := opts.Daily
+	separateTasks := opts.SeparateTasksByProject
 
 	type taskMap map[string]time.Duration
 	type projectMap map[string]taskMap
@@ -71,6 +81,10 @@ func Aggregate(entries []Entry, daily bool, loc *time.Location) []Bucket {
 		}
 		projectName := normalizeProject(entry.Project)
 		taskName := normalizeTask(entry.Task)
+		taskKey := taskName
+		if separateTasks {
+			taskKey = fmt.Sprintf("%s / %s", projectName, taskName)
+		}
 
 		if _, ok := grouped[dateKey]; !ok {
 			grouped[dateKey] = projectMap{}
@@ -83,13 +97,13 @@ func Aggregate(entries []Entry, daily bool, loc *time.Location) []Bucket {
 		if _, ok := taskGroups[dateKey]; !ok {
 			taskGroups[dateKey] = map[string]*taskAgg{}
 		}
-		if agg, ok := taskGroups[dateKey][taskName]; ok {
+		if agg, ok := taskGroups[dateKey][taskKey]; ok {
 			agg.total += entry.Duration
 			if entry.Start.Before(agg.firstStart) {
 				agg.firstStart = entry.Start
 			}
 		} else {
-			taskGroups[dateKey][taskName] = &taskAgg{
+			taskGroups[dateKey][taskKey] = &taskAgg{
 				total:      entry.Duration,
 				firstStart: entry.Start,
 			}
