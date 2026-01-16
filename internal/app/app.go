@@ -98,7 +98,11 @@ func run(ctx context.Context, opts Options, cfg config.Config, deps runDeps) err
 	if opts.Daily {
 		entries = splitEntriesByDay(entries, time.Local)
 	}
-	buckets := summary.Aggregate(entries, opts.Daily, time.Local)
+	buckets := summary.Aggregate(entries, summary.AggregateOptions{
+		Daily:                  opts.Daily,
+		Location:               time.Local,
+		SeparateTasksByProject: opts.SeparateTaskProjects,
+	})
 	output := summary.FormatMarkdown(buckets, summary.FormatOptions{
 		Daily:        opts.Daily,
 		RangeStart:   dr.Start,

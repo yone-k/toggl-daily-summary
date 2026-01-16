@@ -30,6 +30,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.From, "from", "", "Start date in YYYY-M-D")
 	cmd.Flags().StringVar(&opts.To, "to", "", "End date in YYYY-M-D")
 	cmd.Flags().BoolVar(&opts.Daily, "daily", false, "Split output by day when using a date range")
+	cmd.Flags().BoolVar(&opts.SeparateTaskProjects, "separate-task-projects", false, "Separate task totals by project in task list")
 	cmd.Flags().StringVar(&opts.Out, "out", "", "Write output to file (default: stdout)")
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Config file path (default: ~/.config/toggl-daily-summary/config.json)")
 	cmd.Flags().StringVar(&opts.WorkspaceID, "workspace", "", "Workspace ID (overrides config/env)")

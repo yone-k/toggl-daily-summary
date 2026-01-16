@@ -60,7 +60,10 @@ func TestAggregateDailyBuckets(t *testing.T) {
 		},
 	}
 
-	buckets := Aggregate(entries, true, jst)
+	buckets := Aggregate(entries, AggregateOptions{
+		Daily:    true,
+		Location: jst,
+	})
 	if len(buckets) != 2 {
 		t.Fatalf("expected 2 buckets, got %d", len(buckets))
 	}
@@ -95,7 +98,10 @@ func TestFormatMarkdownDailySpacingAndOrder(t *testing.T) {
 		},
 	}
 
-	buckets := Aggregate(entries, true, jst)
+	buckets := Aggregate(entries, AggregateOptions{
+		Daily:    true,
+		Location: jst,
+	})
 	got := FormatMarkdown(buckets, FormatOptions{
 		Format:     "detail",
 		Daily:      true,
@@ -180,7 +186,10 @@ func TestFormatMarkdownDefaultTasksThenProjects(t *testing.T) {
 		},
 	}
 
-	buckets := Aggregate(entries, false, jst)
+	buckets := Aggregate(entries, AggregateOptions{
+		Daily:    false,
+		Location: jst,
+	})
 	got := FormatMarkdown(buckets, FormatOptions{
 		Format:       "default",
 		EmptyMessage: "No data",
@@ -200,6 +209,42 @@ func TestFormatMarkdownDefaultTasksThenProjects(t *testing.T) {
 	}
 }
 
+func TestAggregateSeparateTasksByProject(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	entries := []Entry{
+		{
+			Project:  "Alpha",
+			Task:     "Task1",
+			Start:    time.Date(2026, 1, 10, 9, 0, 0, 0, jst),
+			Duration: 30 * time.Minute,
+		},
+		{
+			Project:  "Beta",
+			Task:     "Task1",
+			Start:    time.Date(2026, 1, 10, 10, 0, 0, 0, jst),
+			Duration: 60 * time.Minute,
+		},
+	}
+
+	buckets := Aggregate(entries, AggregateOptions{
+		Daily:                  false,
+		Location:               jst,
+		SeparateTasksByProject: true,
+	})
+	if len(buckets) != 1 {
+		t.Fatalf("expected 1 bucket, got %d", len(buckets))
+	}
+	if len(buckets[0].Tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(buckets[0].Tasks))
+	}
+	if buckets[0].Tasks[0].Name != "Alpha / Task1" {
+		t.Fatalf("unexpected first task name: %s", buckets[0].Tasks[0].Name)
+	}
+	if buckets[0].Tasks[1].Name != "Beta / Task1" {
+		t.Fatalf("unexpected second task name: %s", buckets[0].Tasks[1].Name)
+	}
+}
+
 func TestFormatMarkdownDefaultDaily(t *testing.T) {
 	jst := time.FixedZone("JST", 9*60*60)
 	entries := []Entry{
@@ -211,7 +256,10 @@ func TestFormatMarkdownDefaultDaily(t *testing.T) {
 		},
 	}
 
-	buckets := Aggregate(entries, true, jst)
+	buckets := Aggregate(entries, AggregateOptions{
+		Daily:    true,
+		Location: jst,
+	})
 	got := FormatMarkdown(buckets, FormatOptions{
 		Format:       "default",
 		Daily:        true,

@@ -69,12 +69,17 @@ toggl-daily-summary --from 2026-1-1 --to 2026-1-7 --daily
 toggl-daily-summary --date 2026-1-10 --format detail --out summary.md
 ```
 
+```bash
+toggl-daily-summary --date 2026-1-10 --separate-task-projects
+```
+
 主なフラグ:
 
 - `--date` 対象日（YYYY-M-D。未指定ならローカルの今日）
 - `--from` 開始日（YYYY-M-D）
 - `--to` 終了日（YYYY-M-D）
 - `--daily` 期間指定時に日別で分割
+- `--separate-task-projects` タスク一覧をプロジェクト別に分割
 - `--out` 出力先ファイル（未指定なら stdout）
 - `--config` 設定ファイル（デフォルト: `~/.config/toggl-daily-summary/config.json`）
 - `--workspace` Workspace ID（config/env を上書き）
@@ -84,6 +89,7 @@ toggl-daily-summary --date 2026-1-10 --format detail --out summary.md
 
 - `--format` は `default` / `detail` 以外はエラーになります
 - `--daily` は日跨ぎエントリを日別に分割します
+- タスク一覧は同名タスクをプロジェクト横断で合算します（`--separate-task-projects` でプロジェクト別に分割）
 - 実行中タスク（duration < 0）は集計から除外します
 - HTTP タイムアウトは 10 秒固定です
 
