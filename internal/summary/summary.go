@@ -81,10 +81,7 @@ func Aggregate(entries []Entry, opts AggregateOptions) []Bucket {
 		}
 		projectName := normalizeProject(entry.Project)
 		taskName := normalizeTask(entry.Task)
-		taskKey := taskName
-		if separateTasks {
-			taskKey = fmt.Sprintf("%s / %s", projectName, taskName)
-		}
+		taskKey := buildTaskKey(projectName, taskName, separateTasks)
 
 		if _, ok := grouped[dateKey]; !ok {
 			grouped[dateKey] = projectMap{}
@@ -154,6 +151,16 @@ func Aggregate(entries []Entry, opts AggregateOptions) []Bucket {
 		})
 
 		tasks := taskGroups[dateKey]
+		taskProjectRank := make(map[string]int, len(tasks))
+		for rank, project := range projectBuckets {
+			for _, task := range project.Tasks {
+				key := buildTaskKey(project.Name, task.Name, separateTasks)
+				if _, ok := taskProjectRank[key]; !ok {
+					taskProjectRank[key] = rank
+				}
+			}
+		}
+
 		taskSummaries := make([]TaskSummary, 0, len(tasks))
 		for name, agg := range tasks {
 			taskSummaries = append(taskSummaries, TaskSummary{
@@ -163,6 +170,11 @@ func Aggregate(entries []Entry, opts AggregateOptions) []Bucket {
 			})
 		}
 		sort.Slice(taskSummaries, func(i, j int) bool {
+			rankI := taskProjectRank[taskSummaries[i].Name]
+			rankJ := taskProjectRank[taskSummaries[j].Name]
+			if rankI != rankJ {
+				return rankI < rankJ
+			}
 			if taskSummaries[i].FirstStart.Equal(taskSummaries[j].FirstStart) {
 				return taskSummaries[i].Name < taskSummaries[j].Name
 			}
@@ -321,6 +333,13 @@ func formatHours(d time.Duration) string {
 	hours := d.Hours()
 	rounded := math.Round(hours*100) / 100
 	return fmt.Sprintf("%.2f", rounded)
+}
+
+func buildTaskKey(projectName, taskName string, separate bool) string {
+	if separate {
+		return fmt.Sprintf("%s / %s", projectName, taskName)
+	}
+	return taskName
 }
 
 func normalizeProject(name string) string {
