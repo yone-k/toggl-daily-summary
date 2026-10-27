@@ -1,6 +1,6 @@
 module github.com/yone/toggl-daily-summary
 
-go 1.25.5
+go 1.27.3
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
