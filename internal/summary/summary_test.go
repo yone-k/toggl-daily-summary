@@ -237,11 +237,69 @@ func TestAggregateSeparateTasksByProject(t *testing.T) {
 	if len(buckets[0].Tasks) != 2 {
 		t.Fatalf("expected 2 tasks, got %d", len(buckets[0].Tasks))
 	}
-	if buckets[0].Tasks[0].Name != "Alpha / Task1" {
+	if buckets[0].Tasks[0].Name != "Beta / Task1" {
 		t.Fatalf("unexpected first task name: %s", buckets[0].Tasks[0].Name)
 	}
-	if buckets[0].Tasks[1].Name != "Beta / Task1" {
+	if buckets[0].Tasks[1].Name != "Alpha / Task1" {
 		t.Fatalf("unexpected second task name: %s", buckets[0].Tasks[1].Name)
+	}
+}
+
+func TestFormatMarkdownDefaultTasksGroupedByProjectOrder(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	entries := []Entry{
+		{
+			Project:  "Beta",
+			Task:     "B",
+			Start:    time.Date(2026, 1, 10, 9, 0, 0, 0, jst),
+			Duration: 30 * time.Minute,
+		},
+		{
+			Project:  "Alpha",
+			Task:     "A",
+			Start:    time.Date(2026, 1, 10, 10, 0, 0, 0, jst),
+			Duration: 60 * time.Minute,
+		},
+		{
+			Project:  "Alpha",
+			Task:     "C",
+			Start:    time.Date(2026, 1, 10, 11, 0, 0, 0, jst),
+			Duration: 30 * time.Minute,
+		},
+		{
+			Project:  "Beta",
+			Task:     "C",
+			Start:    time.Date(2026, 1, 10, 12, 0, 0, 0, jst),
+			Duration: 15 * time.Minute,
+		},
+		{
+			Project:  "Alpha",
+			Task:     "A",
+			Start:    time.Date(2026, 1, 10, 13, 0, 0, 0, jst),
+			Duration: 30 * time.Minute,
+		},
+	}
+
+	buckets := Aggregate(entries, AggregateOptions{
+		Daily:    false,
+		Location: jst,
+	})
+	got := FormatMarkdown(buckets, FormatOptions{
+		Format:       "default",
+		EmptyMessage: "No data",
+	})
+	want := "" +
+		"### タスク\n" +
+		"- A 1.50h\n" +
+		"- C 0.75h\n" +
+		"- B 0.50h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Alpha 2.00h\n" +
+		"- Beta 0.75h\n"
+
+	if got != want {
+		t.Fatalf("unexpected markdown:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 
