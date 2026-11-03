@@ -67,6 +67,40 @@ func TestClientFetchTimeEntries(t *testing.T) {
 	}
 }
 
+func TestClientFetchTimeEntriesParsesTags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[
+		  {"id":1,"description":"Tagged","start":"2026-01-10T09:00:00Z","duration":3600,"tags":["開発","会議"]},
+		  {"id":2,"description":"NullTags","start":"2026-01-10T10:00:00Z","duration":3600,"tags":null},
+		  {"id":3,"description":"NoTagsField","start":"2026-01-10T11:00:00Z","duration":3600}
+		]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL+"/api/v9", "token-123", server.Client())
+	start := time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 11, 0, 0, 0, 0, time.UTC)
+	entries, err := client.FetchTimeEntries(context.Background(), start, end)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(entries))
+	}
+	if len(entries[0].Tags) != 2 || entries[0].Tags[0] != "開発" || entries[0].Tags[1] != "会議" {
+		t.Fatalf("unexpected tags: %v", entries[0].Tags)
+	}
+	if len(entries[1].Tags) != 0 {
+		t.Fatalf("expected no tags for null, got %v", entries[1].Tags)
+	}
+	if len(entries[2].Tags) != 0 {
+		t.Fatalf("expected no tags for missing field, got %v", entries[2].Tags)
+	}
+}
+
 func TestNewClientUsesDefaultTimeout(t *testing.T) {
 	client := NewClient("http://example", "token", nil)
 	if client.httpClient == nil {

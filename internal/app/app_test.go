@@ -249,6 +249,85 @@ func TestRunResolvesProjectNamesFromWorkspace(t *testing.T) {
 	}
 }
 
+func TestRunOrdersByTagOnEachDayWhenDaily(t *testing.T) {
+	origLoc := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = origLoc
+	}()
+
+	client := &fakeTogglClient{
+		timeEntries: []toggl.TimeEntry{
+			{
+				Description: "Untagged",
+				Start:       time.Date(2026, 1, 10, 20, 0, 0, 0, time.UTC),
+				Duration:    2 * time.Hour,
+				ProjectName: "Alpha",
+			},
+			{
+				Description: "Untagged",
+				Start:       time.Date(2026, 1, 11, 9, 0, 0, 0, time.UTC),
+				Duration:    3 * time.Hour,
+				ProjectName: "Alpha",
+			},
+			{
+				Description: "Tagged",
+				Start:       time.Date(2026, 1, 10, 23, 30, 0, 0, time.UTC),
+				Duration:    90 * time.Minute,
+				ProjectName: "Beta",
+				Tags:        []string{"開発"},
+			},
+		},
+	}
+	opts := Options{
+		From:  "2026-01-10",
+		To:    "2026-01-11",
+		Daily: true,
+	}
+	cfg := config.Config{
+		APIToken:    "token",
+		WorkspaceID: "999",
+		BaseURL:     "http://example",
+	}
+
+	var buf bytes.Buffer
+	err := run(context.Background(), opts, cfg, runDeps{
+		client: client,
+		stdout: &buf,
+		now: func() time.Time {
+			return time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := "" +
+		"## 2026-01-10\n" +
+		"\n" +
+		"### タスク\n" +
+		"- Tagged 0.50h\n" +
+		"- Untagged 2.00h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Beta 0.50h\n" +
+		"- Alpha 2.00h\n" +
+		"\n" +
+		"## 2026-01-11\n" +
+		"\n" +
+		"### タスク\n" +
+		"- Tagged 1.00h\n" +
+		"- Untagged 3.00h\n" +
+		"\n" +
+		"### プロジェクト\n" +
+		"- Beta 1.00h\n" +
+		"- Alpha 3.00h\n"
+
+	if buf.String() != want {
+		t.Fatalf("unexpected output:\n--- got ---\n%s\n--- want ---\n%s", buf.String(), want)
+	}
+}
+
 func TestRunSplitsEntriesAcrossDaysWhenDaily(t *testing.T) {
 	origLoc := time.Local
 	time.Local = time.UTC

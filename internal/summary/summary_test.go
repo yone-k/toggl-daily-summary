@@ -303,6 +303,194 @@ func TestFormatMarkdownDefaultTasksGroupedByProjectOrder(t *testing.T) {
 	}
 }
 
+func TestFormatMarkdownDefaultOrdersByTag(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	at := func(hour int) time.Time {
+		return time.Date(2026, 1, 10, hour, 0, 0, 0, jst)
+	}
+
+	tests := []struct {
+		name    string
+		entries []Entry
+		want    string
+	}{
+		{
+			name: "タグの合計時間の降順に並び、タグ内はプロジェクトの合計時間の降順に並ぶ",
+			entries: []Entry{
+				{Tags: []string{"開発"}, Project: "Alpha", Task: "A", Start: at(9), Duration: 2 * time.Hour},
+				{Tags: []string{"開発"}, Project: "Beta", Task: "B", Start: at(10), Duration: 3 * time.Hour},
+				{Tags: []string{"会議"}, Project: "Gamma", Task: "C", Start: at(11), Duration: 4 * time.Hour},
+			},
+			want: "" +
+				"### タスク\n" +
+				"- B 3.00h\n" +
+				"- A 2.00h\n" +
+				"- C 4.00h\n" +
+				"\n" +
+				"### プロジェクト\n" +
+				"- Beta 3.00h\n" +
+				"- Alpha 2.00h\n" +
+				"- Gamma 4.00h\n",
+		},
+		{
+			name: "タグなしは合計時間が最大でも最下部に並ぶ",
+			entries: []Entry{
+				{Project: "Alpha", Task: "A", Start: at(9), Duration: 5 * time.Hour},
+				{Tags: []string{"開発"}, Project: "Beta", Task: "B", Start: at(10), Duration: time.Hour},
+			},
+			want: "" +
+				"### タスク\n" +
+				"- B 1.00h\n" +
+				"- A 5.00h\n" +
+				"\n" +
+				"### プロジェクト\n" +
+				"- Beta 1.00h\n" +
+				"- Alpha 5.00h\n",
+		},
+		{
+			name: "空白のみのタグはタグなしとして扱う",
+			entries: []Entry{
+				{Tags: []string{" "}, Project: "Alpha", Task: "A", Start: at(9), Duration: 5 * time.Hour},
+				{Tags: []string{"開発"}, Project: "Beta", Task: "B", Start: at(10), Duration: time.Hour},
+				{Project: "Gamma", Task: "C", Start: at(11), Duration: 2 * time.Hour},
+			},
+			want: "" +
+				"### タスク\n" +
+				"- B 1.00h\n" +
+				"- A 5.00h\n" +
+				"- C 2.00h\n" +
+				"\n" +
+				"### プロジェクト\n" +
+				"- Beta 1.00h\n" +
+				"- Alpha 5.00h\n" +
+				"- Gamma 2.00h\n",
+		},
+		{
+			name: "同時間のタグは名前順に並ぶ",
+			entries: []Entry{
+				{Tags: []string{"b"}, Project: "Alpha", Task: "A", Start: at(9), Duration: time.Hour},
+				{Tags: []string{"a"}, Project: "Beta", Task: "B", Start: at(10), Duration: time.Hour},
+			},
+			want: "" +
+				"### タスク\n" +
+				"- B 1.00h\n" +
+				"- A 1.00h\n" +
+				"\n" +
+				"### プロジェクト\n" +
+				"- Beta 1.00h\n" +
+				"- Alpha 1.00h\n",
+		},
+		{
+			name: "複数タグは付与順によらず組み合わせごとに1グループになる",
+			entries: []Entry{
+				{Tags: []string{"a", "b"}, Project: "X", Task: "T1", Start: at(9), Duration: time.Hour},
+				{Tags: []string{"b", "a"}, Project: "Y", Task: "T2", Start: at(10), Duration: time.Hour},
+				{Tags: []string{"a"}, Project: "Z", Task: "T3", Start: at(11), Duration: 90 * time.Minute},
+			},
+			want: "" +
+				"### タスク\n" +
+				"- T1 1.00h\n" +
+				"- T2 1.00h\n" +
+				"- T3 1.50h\n" +
+				"\n" +
+				"### プロジェクト\n" +
+				"- X 1.00h\n" +
+				"- Y 1.00h\n" +
+				"- Z 1.50h\n",
+		},
+		{
+			name: "タグをまたぐプロジェクトと同名タスクは先に並ぶタグの位置に置き、全体の合計を表示する",
+			entries: []Entry{
+				{Tags: []string{"x"}, Project: "Beta", Task: "Shared", Start: at(9), Duration: 3 * time.Hour},
+				{Tags: []string{"y"}, Project: "Alpha", Task: "Own", Start: at(10), Duration: 150 * time.Minute},
+				{Project: "Alpha", Task: "Shared", Start: at(11), Duration: 5 * time.Hour},
+			},
+			want: "" +
+				"### タスク\n" +
+				"- Shared 8.00h\n" +
+				"- Own 2.50h\n" +
+				"\n" +
+				"### プロジェクト\n" +
+				"- Beta 3.00h\n" +
+				"- Alpha 7.50h\n",
+		},
+		{
+			name: "同じタグとプロジェクト内のタスクは最初の開始時刻順に並ぶ",
+			entries: []Entry{
+				{Tags: []string{"開発"}, Project: "Alpha", Task: "A", Start: at(10), Duration: time.Hour},
+				{Tags: []string{"開発"}, Project: "Alpha", Task: "Z", Start: at(9), Duration: time.Hour},
+			},
+			want: "" +
+				"### タスク\n" +
+				"- Z 1.00h\n" +
+				"- A 1.00h\n" +
+				"\n" +
+				"### プロジェクト\n" +
+				"- Alpha 2.00h\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buckets := Aggregate(tt.entries, AggregateOptions{Location: jst})
+			got := FormatMarkdown(buckets, FormatOptions{
+				Format:       "default",
+				EmptyMessage: "No data",
+			})
+			if got != tt.want {
+				t.Fatalf("unexpected markdown:\n--- got ---\n%s\n--- want ---\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAggregateSeparateTasksByProjectOrdersByTag(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	start := time.Date(2026, 1, 10, 9, 0, 0, 0, jst)
+	entries := []Entry{
+		{Tags: []string{"開発"}, Project: "Alpha", Task: "T", Start: start, Duration: time.Hour},
+		{Tags: []string{"会議"}, Project: "Beta", Task: "T", Start: start, Duration: 2 * time.Hour},
+		{Project: "Gamma", Task: "T", Start: start, Duration: 5 * time.Hour},
+	}
+
+	buckets := Aggregate(entries, AggregateOptions{
+		Location:               jst,
+		SeparateTasksByProject: true,
+	})
+
+	want := []string{"Beta / T", "Alpha / T", "Gamma / T"}
+	if len(buckets) != 1 || len(buckets[0].Tasks) != len(want) {
+		t.Fatalf("unexpected buckets: %+v", buckets)
+	}
+	for i, name := range want {
+		if buckets[0].Tasks[i].Name != name {
+			t.Fatalf("task %d: got %s, want %s", i, buckets[0].Tasks[i].Name, name)
+		}
+	}
+}
+
+func TestFormatMarkdownDetailKeepsProjectTotalOrderWithTags(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	start := time.Date(2026, 1, 10, 9, 0, 0, 0, jst)
+	entries := []Entry{
+		{Tags: []string{"開発"}, Project: "Beta", Task: "B", Start: start, Duration: time.Hour},
+		{Project: "Alpha", Task: "A", Start: start, Duration: 5 * time.Hour},
+	}
+
+	buckets := Aggregate(entries, AggregateOptions{Location: jst})
+	got := FormatMarkdown(buckets, FormatOptions{Format: "detail"})
+	want := "" +
+		"### Alpha 5.00h\n" +
+		"- A 5.00h\n" +
+		"\n" +
+		"### Beta 1.00h\n" +
+		"- B 1.00h\n"
+
+	if got != want {
+		t.Fatalf("unexpected markdown:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
 func TestFormatMarkdownDefaultDaily(t *testing.T) {
 	jst := time.FixedZone("JST", 9*60*60)
 	entries := []Entry{
