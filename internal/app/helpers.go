@@ -22,6 +22,7 @@ func buildSummaryEntries(entries []toggl.TimeEntry) []summary.Entry {
 			task = "No Description"
 		}
 		out = append(out, summary.Entry{
+			Tags:     entry.Tags,
 			Project:  project,
 			Task:     task,
 			Start:    entry.Start,
@@ -56,6 +57,7 @@ func splitEntriesByDay(entries []summary.Entry, loc *time.Location) []summary.En
 			segmentDuration := segmentEnd.Sub(current)
 			if segmentDuration > 0 {
 				out = append(out, summary.Entry{
+					Tags:     entry.Tags,
 					Project:  entry.Project,
 					Task:     entry.Task,
 					Start:    current,

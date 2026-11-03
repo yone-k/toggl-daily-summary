@@ -26,18 +26,20 @@ type TimeEntry struct {
 	Duration    time.Duration
 	ProjectID   int64
 	ProjectName string
+	Tags        []string
 }
 
 type timeEntryResponse struct {
-	ID          int64   `json:"id"`
-	Description string  `json:"description"`
-	Start       string  `json:"start"`
-	Duration    int64   `json:"duration"`
-	PID         *int64  `json:"pid"`
-	ProjectID   *int64  `json:"project_id"`
-	TaskID      *int64  `json:"task_id"`
-	TID         *int64  `json:"tid"`
-	ProjectName *string `json:"project_name"`
+	ID          int64    `json:"id"`
+	Description string   `json:"description"`
+	Start       string   `json:"start"`
+	Duration    int64    `json:"duration"`
+	PID         *int64   `json:"pid"`
+	ProjectID   *int64   `json:"project_id"`
+	TaskID      *int64   `json:"task_id"`
+	TID         *int64   `json:"tid"`
+	ProjectName *string  `json:"project_name"`
+	Tags        []string `json:"tags"`
 }
 
 type projectResponse struct {
@@ -117,6 +119,7 @@ func (c *Client) FetchTimeEntries(ctx context.Context, start, end time.Time) ([]
 			Duration:    time.Duration(item.Duration) * time.Second,
 			ProjectID:   projectID,
 			ProjectName: projectName,
+			Tags:        item.Tags,
 		})
 	}
 

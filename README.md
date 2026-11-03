@@ -90,6 +90,7 @@ toggl-daily-summary --date 2026-1-10 --separate-task-projects
 - `--format` は `default` / `detail` 以外はエラーになります
 - `--daily` は日跨ぎエントリを日別に分割します
 - タスク一覧は同名タスクをプロジェクト横断で合算します（`--separate-task-projects` でプロジェクト別に分割）
+- `default` 形式の一覧はタグの合計時間の降順に並びます（タグなしは最下部、複数タグは組み合わせごとに1グループ）。タグ名は出力しません
 - 実行中タスク（duration < 0）は集計から除外します
 - HTTP タイムアウトは 10 秒固定です
 
